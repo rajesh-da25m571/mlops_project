@@ -1,0 +1,11 @@
+*.py
+*.ipynb*
+*images*
+*.cfg
+logs
+*.txt
+*.pid
+*prod*
+data
+mlflow_data
+__pycache__
