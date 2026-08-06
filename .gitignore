@@ -8,4 +8,4 @@ logs
 data
 mlflow_data
 __pycache__
-prepared_dataset/unseen_reports
+prepared_dataset/unseen_reports/
