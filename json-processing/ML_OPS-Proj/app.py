@@ -6,7 +6,7 @@ from uuid import uuid4
 import streamlit as st
 from PIL import Image, UnidentifiedImageError
 
-from src.ocr_pipeline import run_invoice_ocr
+from src.kafka_producer import publish_invoice
 
 
 # ---------------------------------------------------------------------
@@ -92,7 +92,9 @@ st.markdown(
 # ---------------------------------------------------------------------
 
 def create_upload_directory() -> None:
-    """Create the uploads directory if it does not already exist."""
+    """
+    Create the uploads directory if it does not already exist.
+    """
     UPLOAD_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -104,11 +106,13 @@ def save_uploaded_invoice(uploaded_file) -> Path:
     Save an uploaded invoice using a unique backend filename.
 
     Args:
-        uploaded_file: Streamlit UploadedFile object.
+        uploaded_file:
+            Streamlit UploadedFile object.
 
     Returns:
         Path of the saved invoice.
     """
+
     create_upload_directory()
 
     original_suffix = Path(
@@ -124,7 +128,10 @@ def save_uploaded_invoice(uploaded_file) -> Path:
         f"{uuid4().hex}_{Path(uploaded_file.name).name}"
     )
 
-    saved_path = UPLOAD_DIR / unique_filename
+    saved_path = (
+        UPLOAD_DIR
+        / unique_filename
+    )
 
     saved_path.write_bytes(
         uploaded_file.getbuffer()
@@ -138,7 +145,10 @@ def save_uploaded_invoice(uploaded_file) -> Path:
 # ---------------------------------------------------------------------
 
 with st.sidebar:
-    st.title("Invoice AI")
+
+    st.title(
+        "Invoice AI"
+    )
 
     st.markdown(
         """
@@ -146,9 +156,11 @@ with st.sidebar:
 
         1. Upload invoice  
         2. Save invoice securely  
-        3. Apply OpenCV preprocessing  
-        4. Extract text using PaddleOCR  
-        5. Generate backend JSON  
+        3. Publish invoice event to Kafka  
+        4. Kafka consumer receives invoice  
+        5. Apply OpenCV preprocessing  
+        6. Extract text using PaddleOCR  
+        7. Generate backend JSON  
         """
     )
 
@@ -177,6 +189,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# ---------------------------------------------------------------------
+# File uploader
+# ---------------------------------------------------------------------
+
 uploaded_file = st.file_uploader(
     label="Upload invoice",
     type=[
@@ -192,13 +209,29 @@ uploaded_file = st.file_uploader(
 )
 
 
+# ---------------------------------------------------------------------
+# No file uploaded
+# ---------------------------------------------------------------------
+
 if uploaded_file is None:
+
     st.info(
         "Upload an invoice image to begin processing."
     )
 
+
+# ---------------------------------------------------------------------
+# File uploaded
+# ---------------------------------------------------------------------
+
 else:
+
+    # -------------------------------------------------------------
+    # Validate uploaded image
+    # -------------------------------------------------------------
+
     try:
+
         uploaded_file.seek(0)
 
         invoice_image = Image.open(
@@ -214,16 +247,25 @@ else:
         )
 
     except UnidentifiedImageError:
+
         st.error(
             "The uploaded file is not a valid image."
         )
+
         st.stop()
 
     except Exception as error:
+
         st.error(
             f"Unable to read the uploaded invoice: {error}"
         )
+
         st.stop()
+
+
+    # -------------------------------------------------------------
+    # Invoice preview and file details
+    # -------------------------------------------------------------
 
     preview_column, details_column = st.columns(
         [2, 1],
@@ -231,6 +273,7 @@ else:
     )
 
     with preview_column:
+
         st.subheader(
             "Invoice Preview"
         )
@@ -242,35 +285,50 @@ else:
         )
 
     with details_column:
+
         st.subheader(
             "File Details"
         )
 
-        file_size_kb = uploaded_file.size / 1024
+        file_size_kb = (
+            uploaded_file.size
+            / 1024
+        )
 
         st.markdown(
             f"""
             <div class="info-card">
+
                 <strong>File name</strong><br>
                 {uploaded_file.name}
+
                 <br><br>
 
                 <strong>File type</strong><br>
                 {uploaded_file.type}
+
                 <br><br>
 
                 <strong>File size</strong><br>
                 {file_size_kb:.2f} KB
+
                 <br><br>
 
                 <strong>Current status</strong><br>
-                Ready for processing
+                Ready for submission
+
             </div>
             """,
             unsafe_allow_html=True,
         )
 
+
     st.divider()
+
+
+    # -------------------------------------------------------------
+    # Process invoice button
+    # -------------------------------------------------------------
 
     process_button = st.button(
         label="Process Invoice",
@@ -278,65 +336,128 @@ else:
         use_container_width=True,
     )
 
+
+    # -------------------------------------------------------------
+    # Kafka producer processing
+    # -------------------------------------------------------------
+
     if process_button:
+
         saved_invoice_path: Path | None = None
 
         try:
+
             with st.status(
-                "Processing invoice...",
+                "Submitting invoice for processing...",
                 expanded=True,
             ) as processing_status:
 
+                # -------------------------------------------------
+                # Step 1: Save invoice
+                # -------------------------------------------------
+
                 st.write(
-                    "Uploading invoice to backend storage..."
+                    "Saving invoice to backend storage..."
                 )
 
                 uploaded_file.seek(0)
 
-                saved_invoice_path = save_uploaded_invoice(
-                    uploaded_file
+                saved_invoice_path = (
+                    save_uploaded_invoice(
+                        uploaded_file
+                    )
                 )
+
+
+                # -------------------------------------------------
+                # Step 2: Generate invoice ID
+                # -------------------------------------------------
+
+                invoice_id = (
+                    saved_invoice_path.stem
+                )
+
 
                 st.write(
-                    "Applying OpenCV image preprocessing..."
+                    f"Invoice stored at: "
+                    f"{saved_invoice_path}"
                 )
+
+
+                # -------------------------------------------------
+                # Step 3: Publish Kafka message
+                # -------------------------------------------------
 
                 st.write(
-                    "Running PaddleOCR text extraction..."
+                    "Publishing invoice event to Kafka..."
                 )
 
-                run_invoice_ocr(
-                    saved_invoice_path
+                publish_invoice(
+                    invoice_id=invoice_id,
+                    image_path=str(
+                        saved_invoice_path
+                    ),
+                    original_filename=(
+                        uploaded_file.name
+                    ),
                 )
 
-                st.write(
-                    "Saving OCR output as backend JSON..."
-                )
+
+                # -------------------------------------------------
+                # Kafka submission completed
+                # -------------------------------------------------
 
                 processing_status.update(
-                    label="Invoice processing completed",
+                    label=(
+                        "Invoice submitted successfully"
+                    ),
                     state="complete",
                     expanded=False,
                 )
 
+
+            # -----------------------------------------------------
+            # Display queue status
+            # -----------------------------------------------------
+
             st.markdown(
-                """
-                <div class="status-card">
-                    <strong>Invoice processed successfully</strong>
+                f"""
+                <div class="pending-card">
+
+                    <strong>
+                        Invoice submitted successfully
+                    </strong>
+
                     <br><br>
-                    OCR Status: Completed
+
+                    <strong>Invoice ID:</strong><br>
+                    {invoice_id}
+
+                    <br><br>
+
+                    <strong>Queue Status:</strong>
+                    Submitted to Kafka
+
                     <br>
-                    Processing Status: Successful
+
+                    <strong>OCR Status:</strong>
+                    Pending
+
                     <br>
-                    Next Stage: Invoice validation pending
+
+                    <strong>Next Stage:</strong>
+                    Waiting for OCR consumer
+
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
+
         except Exception as error:
+
             st.error(
-                "Invoice processing failed."
+                "Invoice submission failed."
             )
 
             st.exception(
