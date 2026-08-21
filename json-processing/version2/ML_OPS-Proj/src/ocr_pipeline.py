@@ -50,10 +50,14 @@ def get_ocr_model() -> PaddleOCR:
     Returns:
         Initialized PaddleOCR model.
     """
+
     global _ocr_model
 
     if _ocr_model is None:
-        logger.info("Initializing PaddleOCR model...")
+
+        logger.info(
+            "Initializing PaddleOCR model..."
+        )
 
         _ocr_model = PaddleOCR(
             lang="en",
@@ -62,7 +66,9 @@ def get_ocr_model() -> PaddleOCR:
             use_textline_orientation=False,
         )
 
-        logger.info("PaddleOCR model initialized successfully.")
+        logger.info(
+            "PaddleOCR model initialized successfully."
+        )
 
     return _ocr_model
 
@@ -71,7 +77,9 @@ def get_ocr_model() -> PaddleOCR:
 # OpenCV preprocessing
 # ---------------------------------------------------------------------
 
-def preprocess_invoice(image: np.ndarray) -> np.ndarray:
+def preprocess_invoice(
+    image: np.ndarray,
+) -> np.ndarray:
     """
     Apply conservative OpenCV preprocessing to an invoice image.
 
@@ -79,16 +87,22 @@ def preprocess_invoice(image: np.ndarray) -> np.ndarray:
     may remove thin characters, decimal points, and table borders.
 
     Args:
-        image: Original BGR image loaded by OpenCV.
+        image:
+            Original BGR image loaded by OpenCV.
 
     Returns:
         Preprocessed BGR image suitable for PaddleOCR.
 
     Raises:
-        ValueError: If the supplied image is empty.
+        ValueError:
+            If the supplied image is empty.
     """
+
     if image is None or image.size == 0:
-        raise ValueError("The supplied image is empty.")
+
+        raise ValueError(
+            "The supplied image is empty."
+        )
 
     grayscale = cv2.cvtColor(
         image,
@@ -108,7 +122,9 @@ def preprocess_invoice(image: np.ndarray) -> np.ndarray:
         tileGridSize=(8, 8),
     )
 
-    enhanced = clahe.apply(denoised)
+    enhanced = clahe.apply(
+        denoised
+    )
 
     processed = cv2.cvtColor(
         enhanced,
@@ -123,12 +139,16 @@ def preprocess_invoice(image: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------
 
 def create_output_directories() -> None:
-    """Create all required backend output directories."""
+    """
+    Create all required backend output directories.
+    """
+
     for directory in (
         PROCESSED_DIR,
         JSON_DIR,
         VISUALISATION_DIR,
     ):
+
         directory.mkdir(
             parents=True,
             exist_ok=True,
@@ -145,17 +165,23 @@ def convert_bbox_to_integer_list(
         [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
 
     Args:
-        polygon: Bounding-box polygon returned by PaddleOCR.
+        polygon:
+            Bounding-box polygon returned by PaddleOCR.
 
     Returns:
         Four-point integer bounding box.
 
     Raises:
-        ValueError: If the polygon shape is invalid.
+        ValueError:
+            If the polygon shape is invalid.
     """
-    polygon_array = np.asarray(polygon)
+
+    polygon_array = np.asarray(
+        polygon
+    )
 
     if polygon_array.shape != (4, 2):
+
         raise ValueError(
             f"Expected bounding box shape (4, 2), "
             f"but received {polygon_array.shape}."
@@ -180,28 +206,47 @@ def extract_result_dictionary(
     property and may store the actual result under a top-level `res` key.
 
     Args:
-        result_object: One PaddleOCR prediction result.
+        result_object:
+            One PaddleOCR prediction result.
 
     Returns:
         Dictionary containing recognized text, scores, and polygons.
 
     Raises:
-        TypeError: If PaddleOCR returns an unexpected representation.
+        TypeError:
+            If PaddleOCR returns an unexpected representation.
     """
+
     result_json = result_object.json
 
-    if callable(result_json):
-        result_json = result_json()
+    if callable(
+        result_json
+    ):
 
-    if not isinstance(result_json, dict):
+        result_json = (
+            result_json()
+        )
+
+    if not isinstance(
+        result_json,
+        dict,
+    ):
+
         raise TypeError(
             "PaddleOCR returned an unexpected result representation."
         )
 
     if "res" in result_json:
-        result_json = result_json["res"]
 
-    if not isinstance(result_json, dict):
+        result_json = (
+            result_json["res"]
+        )
+
+    if not isinstance(
+        result_json,
+        dict,
+    ):
+
         raise TypeError(
             "PaddleOCR result data is not a dictionary."
         )
@@ -217,15 +262,20 @@ def save_processed_image(
     Save the OpenCV-preprocessed invoice image.
 
     Args:
-        processed_image: Preprocessed image.
-        image_path: Original invoice image path.
+        processed_image:
+            Preprocessed image.
+
+        image_path:
+            Original invoice image path.
 
     Returns:
         Path of the saved processed image.
 
     Raises:
-        IOError: If the image cannot be saved.
+        IOError:
+            If the image cannot be saved.
     """
+
     processed_path = (
         PROCESSED_DIR
         / f"{image_path.stem}_processed{image_path.suffix}"
@@ -235,6 +285,7 @@ def save_processed_image(
         str(processed_path),
         processed_image,
     ):
+
         raise IOError(
             f"Could not save processed image to: {processed_path}"
         )
@@ -250,18 +301,26 @@ def save_json_output(
     Save OCR output as a backend JSON file.
 
     Args:
-        output: OCR result.
-        image_path: Original invoice image path.
+        output:
+            OCR result.
+
+        image_path:
+            Original invoice image path.
 
     Returns:
         Path of the saved JSON file.
     """
-    json_path = JSON_DIR / f"{image_path.stem}_ocr.json"
+
+    json_path = (
+        JSON_DIR
+        / f"{image_path.stem}_ocr.json"
+    )
 
     with json_path.open(
         mode="w",
         encoding="utf-8",
     ) as json_file:
+
         json.dump(
             output,
             json_file,
@@ -281,16 +340,26 @@ def draw_ocr_boxes(
     Draw OCR polygons and confidence scores on the original image.
 
     Args:
-        original_image: Original BGR invoice image.
-        extracted_data: Extracted OCR regions.
-        output_path: Path for the saved visualization.
+        original_image:
+            Original BGR invoice image.
+
+        extracted_data:
+            Extracted OCR regions.
+
+        output_path:
+            Path for the saved visualization.
 
     Raises:
-        IOError: If the visualization cannot be saved.
+        IOError:
+            If the visualization cannot be saved.
     """
-    visualisation = original_image.copy()
+
+    visualisation = (
+        original_image.copy()
+    )
 
     for item in extracted_data:
+
         points = np.asarray(
             item["bbox"],
             dtype=np.int32,
@@ -304,18 +373,28 @@ def draw_ocr_boxes(
             thickness=2,
         )
 
-        top_left_x = int(points[:, 0].min())
+        top_left_x = int(
+            points[:, 0].min()
+        )
+
         top_left_y = max(
-            int(points[:, 1].min()) - 8,
+            int(
+                points[:, 1].min()
+            ) - 8,
             20,
         )
 
-        label = f'{item["confidence"]:.2f}'
+        label = (
+            f'{item["confidence"]:.2f}'
+        )
 
         cv2.putText(
             visualisation,
             label,
-            (top_left_x, top_left_y),
+            (
+                top_left_x,
+                top_left_y,
+            ),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             (0, 0, 255),
@@ -327,6 +406,7 @@ def draw_ocr_boxes(
         str(output_path),
         visualisation,
     ):
+
         raise IOError(
             f"Could not save visualisation to: {output_path}"
         )
@@ -338,29 +418,47 @@ def draw_ocr_boxes(
 
 def run_invoice_ocr(
     image_path: str | Path,
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     """
     Run OpenCV preprocessing and PaddleOCR on one invoice image.
 
     Args:
-        image_path: Path to one uploaded invoice image.
+        image_path:
+            Path to one uploaded invoice image.
 
     Returns:
-        A list containing one invoice OCR result dictionary.
+        Dictionary containing:
+
+        - OCR output
+        - processed image path
+        - OCR JSON path
+        - bounding-box visualization path
+        - text region count
+        - average OCR confidence
 
     Raises:
-        FileNotFoundError: If the invoice does not exist.
-        ValueError: If the path is invalid or the image cannot be read.
-        IOError: If an output artifact cannot be saved.
+        FileNotFoundError:
+            If the invoice does not exist.
+
+        ValueError:
+            If the path is invalid or the image cannot be read.
+
+        IOError:
+            If an output artifact cannot be saved.
     """
-    image_path = Path(image_path)
+
+    image_path = Path(
+        image_path
+    )
 
     if not image_path.exists():
+
         raise FileNotFoundError(
             f"Invoice image does not exist: {image_path}"
         )
 
     if not image_path.is_file():
+
         raise ValueError(
             f"Invoice path is not a file: {image_path}"
         )
@@ -378,11 +476,14 @@ def run_invoice_ocr(
     )
 
     if original_image is None:
+
         raise ValueError(
             f"OpenCV could not read the image: {image_path}"
         )
 
-    image_height, image_width = original_image.shape[:2]
+    image_height, image_width = (
+        original_image.shape[:2]
+    )
 
     logger.info(
         "Original image dimensions: width=%d, height=%d",
@@ -390,17 +491,25 @@ def run_invoice_ocr(
         image_height,
     )
 
+    # -------------------------------------------------------------
+    # OpenCV preprocessing
+    # -------------------------------------------------------------
+
     logger.info(
         "Applying OpenCV preprocessing..."
     )
 
-    processed_image = preprocess_invoice(
-        original_image
+    processed_image = (
+        preprocess_invoice(
+            original_image
+        )
     )
 
-    processed_path = save_processed_image(
-        processed_image=processed_image,
-        image_path=image_path,
+    processed_path = (
+        save_processed_image(
+            processed_image=processed_image,
+            image_path=image_path,
+        )
     )
 
     logger.info(
@@ -408,21 +517,34 @@ def run_invoice_ocr(
         processed_path,
     )
 
+    # -------------------------------------------------------------
+    # PaddleOCR
+    # -------------------------------------------------------------
+
     logger.info(
         "Running PaddleOCR..."
     )
 
-    ocr_model = get_ocr_model()
-
-    prediction_results = ocr_model.predict(
-        processed_image
+    ocr_model = (
+        get_ocr_model()
     )
 
-    extracted_data: list[dict[str, Any]] = []
+    prediction_results = (
+        ocr_model.predict(
+            processed_image
+        )
+    )
+
+    extracted_data: list[
+        dict[str, Any]
+    ] = []
 
     for prediction_result in prediction_results:
-        result = extract_result_dictionary(
-            prediction_result
+
+        result = (
+            extract_result_dictionary(
+                prediction_result
+            )
         )
 
         texts = result.get(
@@ -445,59 +567,108 @@ def run_invoice_ocr(
             == len(scores)
             == len(polygons)
         ):
+
             raise ValueError(
                 "PaddleOCR returned mismatched numbers of texts, "
                 "scores, and bounding boxes."
             )
 
-        for text, confidence, polygon in zip(
+        for (
+            text,
+            confidence,
+            polygon,
+        ) in zip(
             texts,
             scores,
             polygons,
         ):
-            clean_text = str(text).strip()
-            confidence_value = float(confidence)
+
+            clean_text = (
+                str(text).strip()
+            )
+
+            confidence_value = (
+                float(confidence)
+            )
 
             if not clean_text:
                 continue
 
-            if confidence_value < MIN_CONFIDENCE:
+            if (
+                confidence_value
+                < MIN_CONFIDENCE
+            ):
                 continue
 
             extracted_data.append(
                 {
                     "text": clean_text,
+
                     "confidence": round(
                         confidence_value,
                         4,
                     ),
-                    "bbox": convert_bbox_to_integer_list(
-                        polygon
+
+                    "bbox": (
+                        convert_bbox_to_integer_list(
+                            polygon
+                        )
                     ),
                 }
             )
 
+    # -------------------------------------------------------------
+    # Create OCR result
+    # -------------------------------------------------------------
+
     invoice_result = {
         "file_name": image_path.name,
-        "img_width": int(image_width),
-        "img_height": int(image_height),
+
+        "img_width": int(
+            image_width
+        ),
+
+        "img_height": int(
+            image_height
+        ),
+
         "ocr_status": "completed",
-        "text_region_count": len(extracted_data),
-        "extracted_data": extracted_data,
+
+        "text_region_count": len(
+            extracted_data
+        ),
+
+        "extracted_data": (
+            extracted_data
+        ),
     }
 
     final_output = [
         invoice_result,
     ]
 
-    json_path = save_json_output(
-        output=final_output,
-        image_path=image_path,
+    # -------------------------------------------------------------
+    # Save OCR JSON
+    # -------------------------------------------------------------
+
+    json_path = (
+        save_json_output(
+            output=final_output,
+            image_path=image_path,
+        )
     )
+
+    # -------------------------------------------------------------
+    # Save bounding-box visualization
+    # -------------------------------------------------------------
 
     visualisation_path = (
         VISUALISATION_DIR
-        / f"{image_path.stem}_bbox{image_path.suffix}"
+        / (
+            f"{image_path.stem}"
+            f"_bbox"
+            f"{image_path.suffix}"
+        )
     )
 
     draw_ocr_boxes(
@@ -506,9 +677,33 @@ def run_invoice_ocr(
         output_path=visualisation_path,
     )
 
+    # -------------------------------------------------------------
+    # Calculate average OCR confidence
+    # -------------------------------------------------------------
+
+    average_confidence = 0.0
+
+    if extracted_data:
+
+        average_confidence = sum(
+            item["confidence"]
+            for item in extracted_data
+        ) / len(
+            extracted_data
+        )
+
+    # -------------------------------------------------------------
+    # Logging
+    # -------------------------------------------------------------
+
     logger.info(
         "OCR completed. Extracted %d text regions.",
         len(extracted_data),
+    )
+
+    logger.info(
+        "Average OCR confidence: %.4f",
+        average_confidence,
     )
 
     logger.info(
@@ -521,4 +716,30 @@ def run_invoice_ocr(
         visualisation_path,
     )
 
-    return final_output
+    # -------------------------------------------------------------
+    # Return OCR result and artifact information
+    # -------------------------------------------------------------
+
+    return {
+        "ocr_output": final_output,
+
+        "processed_image_path": str(
+            processed_path
+        ),
+
+        "json_path": str(
+            json_path
+        ),
+
+        "visualisation_path": str(
+            visualisation_path
+        ),
+
+        "text_region_count": len(
+            extracted_data
+        ),
+
+        "average_confidence": float(
+            average_confidence
+        ),
+    }
